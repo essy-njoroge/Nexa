@@ -1,0 +1,50 @@
+[
+    {
+        "merged": "com.essy.nexa.app-debug-67:/mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "com.essy.nexa.app-main-69:/mipmap-xxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.essy.nexa.app-debug-67:/mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "com.essy.nexa.app-main-69:/mipmap-xxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.essy.nexa.app-debug-67:/mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "com.essy.nexa.app-main-69:/mipmap-xxxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.essy.nexa.app-debug-67:/xml_backup_rules.xml.flat",
+        "source": "com.essy.nexa.app-main-69:/xml/backup_rules.xml"
+    },
+    {
+        "merged": "com.essy.nexa.app-debug-67:/xml_data_extraction_rules.xml.flat",
+        "source": "com.essy.nexa.app-main-69:/xml/data_extraction_rules.xml"
+    },
+    {
+        "merged": "com.essy.nexa.app-debug-67:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
+        "source": "com.essy.nexa.app-main-69:/mipmap-xxxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.essy.nexa.app-debug-67:/mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "com.essy.nexa.app-main-69:/mipmap-xhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.essy.nexa.app-debug-67:/mipmap-mdpi_ic_launcher_round.png.flat",
+        "source": "com.essy.nexa.app-main-69:/mipmap-mdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.essy.nexa.app-debug-67:/mipmap-mdpi_ic_launcher.png.flat",
+        "source": "com.essy.nexa.app-main-69:/mipmap-mdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.essy.nexa.app-debug-67:/mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "com.essy.nexa.app-main-69:/mipmap-xhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.essy.nexa.app-debug-67:/mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "com.essy.nexa.app-main-69:/mipmap-hdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.essy.nexa.app-debug-67:/mipmap-hdpi_ic_launcher.png.flat",
+        "source": "com.essy.nexa.app-main-69:/mipmap-hdpi/ic_launcher.png"
+    }
+]

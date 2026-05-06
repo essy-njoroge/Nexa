@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.Nexa" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#6C63FF</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+    </style>
+</resources>

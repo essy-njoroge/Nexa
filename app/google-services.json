@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "1097596954476",
+    "firebase_url": "https://nexa1-ab185-default-rtdb.firebaseio.com",
+    "project_id": "nexa1-ab185",
+    "storage_bucket": "nexa1-ab185.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1097596954476:android:dba727936f1a8df015b549",
+        "android_client_info": {
+          "package_name": "com.essy.nexa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCvbrFaS_1Y3NraF78fBGaS-gaWOxI_MTg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
