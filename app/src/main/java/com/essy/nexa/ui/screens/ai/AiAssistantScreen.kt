@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -22,8 +23,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
-import com.essy.nexa.ui.theme.*
 
+// ─── COLORS (match your login/register theme) ─────────────────────────
+private val DeepMidnight = Color(0xFF06050F)
+private val HotPink = Color(0xFFFF2D9B)
+private val BlazeOrange = Color(0xFFFF6400)
+private val GoldYellow = Color(0xFFFFB300)
+
+private val Gradient = Brush.horizontalGradient(
+    listOf(HotPink, BlazeOrange, GoldYellow)
+)
+
+// ─── MODEL ─────────────────────────────────────────────────────────────
 data class AiMessage(val content: String, val isUser: Boolean)
 
 val quickPrompts = listOf(
@@ -33,228 +44,193 @@ val quickPrompts = listOf(
     "🏫 Club updates"
 )
 
-fun getAiReply(input: String): String = when {
-    input.contains("event", true) || input.contains("today", true) ->
-        "Based on your interests in Technology & Startups, here are today's picks:\n\n• 🛠️ Hackathon Kickoff — 9AM, Innovation Hub\n• 🤖 AI Workshop — 2PM, Lab 3\n• 💡 Startup Pitch Prep — 5PM, Business Block\n\nShall I RSVP you to any of these?"
-    input.contains("job", true) || input.contains("opportunit", true) ->
-        "I found 3 opportunities matching your Kotlin & Android skills:\n\n• 💻 Android Intern @ TechCorp (Deadline: May 31)\n• 🎨 UI/UX Intern @ CreativeHub (Remote)\n• 🚀 SWE Intern @ StartupHub\n\nYour profile has been viewed by 2 recruiters this week!"
-    input.contains("study", true) || input.contains("group", true) ->
-        "I found 2 study groups for your modules:\n\n• 📊 Algorithms Study Group — 6 members, Tues/Thurs\n• 🖥️ Mobile Dev Workshop — 4 members, Fridays\n\nWant me to add you to one?"
-    input.contains("club", true) ->
-        "Here are updates from clubs you follow:\n\n• 💻 Tech Club: Meeting today at 5PM, Room B204\n• 📊 Business Club: Pitch competition registrations open!\n\nView all club updates in the Clubs tab."
-    else ->
-        "I'm Nexa AI — your smart campus assistant! I can help you:\n\n• 🎯 Find events tailored to your interests\n• 💼 Discover career opportunities\n• 📚 Match you with study groups\n• 🏫 Stay updated on clubs\n\nWhat can I help you with today?"
+// ─── AI LOGIC ──────────────────────────────────────────────────────────
+fun getAiReply(input: String): String {
+    val q = input.lowercase()
+
+    return when {
+        q.contains("hey") || q.contains("hello") ->
+            "Hey 👋 I'm Nexa AI — your campus assistant."
+
+        q.contains("event") || q.contains("today") ->
+            "Today's events:\n• Hackathon\n• AI Workshop\n• Startup Meetup"
+
+        q.contains("job") ->
+            "Jobs:\n• Android Intern\n• UI/UX Intern\n• Software Intern"
+
+        q.contains("study") ->
+            "Study groups:\n• Mobile Dev\n• Data Structures\n• AI Club"
+
+        q.contains("club") ->
+            "Club updates:\n• Tech Club meeting today\n• Media auditions open"
+
+        else ->
+            "Got it 👍\nYou said: \"$input\""
+    }
 }
 
+// ─── SCREEN ─────────────────────────────────────────────────────────────
 @Composable
 fun AiAssistantScreen(navController: NavController) {
-    val primary = NexaPrimary
+
     val messages = remember {
         mutableStateListOf(
-            AiMessage("Hey! I'm Nexa AI — your smart campus companion 🤖✨\n\nI can recommend events, find opportunities, match you with study groups and more. What's on your mind?", false)
+            AiMessage("Hey! I'm Nexa AI 🤖 Ask me anything.", false)
         )
     }
+
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
+        listState.animateScrollToItem(messages.size - 1)
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(primary)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DeepMidnight)
+    ) {
+
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // Header
+            // ─── HEADER ─────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                    .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
                     onClick = { navController.popBackStack() },
                     modifier = Modifier
                         .size(40.dp)
-                        .background(Color.White.copy(alpha = 0.2f), CircleShape)
+                        .background(Color.White.copy(alpha = 0.08f), CircleShape)
                 ) {
                     Icon(Icons.Default.ArrowBack, null, tint = Color.White)
                 }
 
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(Modifier.width(10.dp))
 
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color.White),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.AutoAwesome, null, tint = primary, modifier = Modifier.size(22.dp))
+                Column {
+                    Text("Nexa AI", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Always available",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 11.sp
+                    )
                 }
+            }
 
-                Spacer(modifier = Modifier.width(10.dp))
+            // ─── CHAT AREA ──────────────────────────
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color.White.copy(alpha = 0.04f))
+                    .padding(12.dp)
+            ) {
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Nexa AI", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(6.dp).background(NexaSecondary, CircleShape))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Always available", color = NexaTextWhite80, fontSize = 11.sp)
+                LazyColumn(
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+
+                    items(messages) { msg ->
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement =
+                                if (msg.isUser) Arrangement.End else Arrangement.Start
+                        ) {
+
+                            // ─── FIXED BACKGROUND (NO TYPE ERROR) ───
+                            val bubbleModifier =
+                                if (msg.isUser) {
+                                    Modifier.background(Gradient)
+                                } else {
+                                    Modifier.background(Color.White.copy(alpha = 0.08f))
+                                }
+
+                            Box(
+                                modifier = Modifier
+                                    .then(bubbleModifier)
+                                    .clip(
+                                        RoundedCornerShape(
+                                            topStart = 16.dp,
+                                            topEnd = 16.dp,
+                                            bottomStart = if (msg.isUser) 16.dp else 4.dp,
+                                            bottomEnd = if (msg.isUser) 4.dp else 16.dp
+                                        )
+                                    )
+                                    .padding(14.dp)
+                                    .widthIn(max = 280.dp)
+                            ) {
+                                Text(
+                                    msg.content,
+                                    color = Color.White,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
                     }
                 }
             }
 
-            Card(
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                modifier = Modifier.fillMaxSize(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5FA)),
-                elevation = CardDefaults.cardElevation(0.dp)
+            // ─── INPUT BAR ──────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.fillMaxSize()) {
 
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(vertical = 16.dp)
-                    ) {
-                        items(messages) { msg ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = if (msg.isUser) Arrangement.End else Arrangement.Start
-                            ) {
-                                if (!msg.isUser) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .clip(CircleShape)
-                                            .background(primary),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.Default.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .clip(
-                                            RoundedCornerShape(
-                                                topStart = 16.dp,
-                                                topEnd = 16.dp,
-                                                bottomStart = if (msg.isUser) 16.dp else 4.dp,
-                                                bottomEnd = if (msg.isUser) 4.dp else 16.dp
-                                            )
-                                        )
-                                        .background(
-                                            color = if (msg.isUser) primary else Color.White
-                                        )
-                                        .padding(14.dp)
-                                        .widthIn(max = 280.dp)
-                                ) {
-                                    Text(
-                                        msg.content,
-                                        color = if (msg.isUser) Color.White else NexaTextDark,
-                                        fontSize = 14.sp,
-                                        lineHeight = 21.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        if (messages.size == 1) {
-                            item {
-                                Column {
-                                    Text(
-                                        "Try asking:",
-                                        color = NexaTextGrey,
-                                        fontSize = 12.sp,
-                                        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
-                                    )
-
-                                    quickPrompts.chunked(2).forEach { row ->
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(bottom = 8.dp)
-                                        ) {
-                                            row.forEach { prompt ->
-                                                Surface(
-                                                    shape = RoundedCornerShape(12.dp),
-                                                    color = Color.White,
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .clickable {
-                                                            messages.add(AiMessage(prompt, true))
-                                                            messages.add(AiMessage(getAiReply(prompt), false))
-                                                        }
-                                                ) {
-                                                    Text(
-                                                        prompt,
-                                                        color = NexaTextDark,
-                                                        fontSize = 12.sp,
-                                                        modifier = Modifier.padding(10.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.White)
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = inputText,
-                            onValueChange = { inputText = it },
-                            placeholder = {
-                                Text("Ask Nexa AI anything...", color = NexaTextGrey, fontSize = 14.sp)
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(24.dp),
-                            singleLine = false,
-                            maxLines = 3,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = primary,
-                                unfocusedBorderColor = NexaDivider
-                            )
+                OutlinedTextField(
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    placeholder = {
+                        Text(
+                            "Ask Nexa AI...",
+                            color = Color.White.copy(alpha = 0.5f)
                         )
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(30.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = HotPink,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
 
-                        Spacer(modifier = Modifier.width(8.dp))
+                Spacer(Modifier.width(8.dp))
 
-                        IconButton(
-                            onClick = {
-                                if (inputText.isNotBlank()) {
-                                    val q = inputText
-                                    messages.add(AiMessage(q, true))
-                                    messages.add(AiMessage(getAiReply(q), false))
-                                    inputText = ""
-                                }
-                            },
-                            modifier = Modifier
-                                .size(46.dp)
-                                .clip(CircleShape)
-                                .background(primary)
-                        ) {
-                            Icon(Icons.Default.Send, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                        }
-                    }
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(Gradient)
+                        .clickable {
+                            if (inputText.isNotBlank()) {
+                                val q = inputText
+                                messages.add(AiMessage(q, true))
+                                messages.add(AiMessage(getAiReply(q), false))
+                                inputText = ""
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Send, null, tint = Color.White)
                 }
             }
         }
     }
 }
 
+// ─── PREVIEW ───────────────────────────────────────────────────────────
 @Preview(showBackground = true)
 @Composable
 fun AiAssistantPreview() {

@@ -1,17 +1,27 @@
 package com.essy.nexa.ui.screens.auth
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -19,169 +29,237 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
-import com.essy.nexa.ui.theme.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 
+// ───────────────── COLORS ─────────────────
+private val DeepMidnight = Color(0xFF06050F)
+private val HotPink = Color(0xFFFF2D9B)
+private val BlazeOrange = Color(0xFFFF6400)
+private val GoldYellow = Color(0xFFFFB300)
+private val White = Color.White
+
+// ───────────────── DATA ─────────────────
 data class InterestItem(val emoji: String, val label: String)
 
 val interestList = listOf(
-    InterestItem("💻", "Technology"), InterestItem("🎨", "Design"),
-    InterestItem("📊", "Business"),   InterestItem("🔬", "Science"),
-    InterestItem("🎭", "Drama"),      InterestItem("⚽", "Sports"),
-    InterestItem("🎵", "Music"),      InterestItem("🌍", "Environment"),
-    InterestItem("📸", "Photography"),InterestItem("🚀", "Startups"),
-    InterestItem("🤝", "Networking"), InterestItem("📚", "Academia"),
-    InterestItem("🎮", "Gaming"),     InterestItem("🏥", "Health"),
-    InterestItem("📰", "Journalism"), InterestItem("🍕", "Social")
+    InterestItem("💻", "Technology"),
+    InterestItem("🎨", "Design"),
+    InterestItem("📊", "Business"),
+    InterestItem("🔬", "Science"),
+    InterestItem("🎭", "Drama"),
+    InterestItem("⚽", "Sports"),
+    InterestItem("🎵", "Music"),
+    InterestItem("🌍", "Environment"),
+    InterestItem("📸", "Photography"),
+    InterestItem("🚀", "Startups"),
+    InterestItem("🤝", "Networking"),
+    InterestItem("📚", "Academia"),
+    InterestItem("🎮", "Gaming"),
+    InterestItem("🏥", "Health"),
+    InterestItem("📰", "Journalism"),
+    InterestItem("🍕", "Social")
 )
 
+// ───────────────── BACKGROUND (FIXED) ─────────────────
 @Composable
-fun InterestSelectionScreen(navController: NavController) {
+fun RegisterBackground() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        DeepMidnight,
+                        Color(0xFF0A0A18)
+                    )
+                )
+            )
+    )
+}
 
-    val selected  = remember { mutableStateListOf<String>() }
-    val primary   = NexaPrimary
-    var isSaving  by remember { mutableStateOf(false) }
+// ───────────────── LOGO (FIXED) ─────────────────
+@Composable
+fun MiniLogo() {
+    Text(
+        text = "NEXA",
+        color = White,
+        fontSize = 22.sp,
+        fontWeight = FontWeight.Black,
+        letterSpacing = 3.sp
+    )
+}
 
-    Box(modifier = Modifier.fillMaxSize().background(primary)) {
-        Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+// ───────────────── MAIN SCREEN ─────────────────
+@Composable
+fun InterestSelectionScreen(
+    navController: NavController
+) {
 
-            Spacer(modifier = Modifier.height(32.dp))
+    val selected = remember { mutableStateListOf<String>() }
+    var isSaving by remember { mutableStateOf(false) }
 
-            Text("What are you into?", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White)
+    val buttonGradient =
+        Brush.horizontalGradient(listOf(HotPink, BlazeOrange, GoldYellow))
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DeepMidnight)
+    ) {
+
+        RegisterBackground()
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 28.dp)
+        ) {
+
+            Spacer(modifier = Modifier.height(60.dp))
+
+            MiniLogo()
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             Text(
-                "Pick at least 3 to personalise your Nexa experience",
-                color = NexaTextWhite80, fontSize = 14.sp
+                text = "Choose\nYour Interests",
+                color = White,
+                fontSize = 42.sp,
+                fontWeight = FontWeight.Black,
+                lineHeight = 48.sp
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(4.dp)
+            Text(
+                text = "Pick at least 3 to personalize your Nexa experience",
+                color = White.copy(alpha = 0.45f),
+                fontSize = 13.sp
+            )
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(White.copy(alpha = 0.04f))
+                    .border(1.dp, White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
+                    .padding(18.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp).fillMaxSize()) {
 
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        items(interestList) { item ->
-                            val isSelected = selected.contains(item.label)
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) primary else NexaTagBg,
-                                modifier = Modifier.fillMaxWidth().clickable {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier.height(420.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+
+                    items(interestList) { item ->
+
+                        val isSelected = selected.contains(item.label)
+
+                        val animatedBorder by animateColorAsState(
+                            if (isSelected) HotPink.copy(alpha = 0.6f)
+                            else White.copy(alpha = 0.08f)
+                        )
+
+                        val animatedBg by animateColorAsState(
+                            if (isSelected) HotPink.copy(alpha = 0.18f)
+                            else White.copy(alpha = 0.04f)
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(animatedBg)
+                                .border(1.dp, animatedBorder, RoundedCornerShape(16.dp))
+                                .clickable {
                                     if (isSelected) selected.remove(item.label)
                                     else selected.add(item.label)
                                 }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(item.emoji, fontSize = 20.sp)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        item.label,
-                                        color = if (isSelected) Color.White else primary,
-                                        fontWeight = FontWeight.Medium,
-                                        fontSize = 13.sp
-                                    )
-                                }
+                                .padding(14.dp)
+                        ) {
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(item.emoji, fontSize = 22.sp)
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    item.label,
+                                    color = if (isSelected) White else White.copy(alpha = 0.75f),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         }
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                    Text(
-                        "${selected.size} selected",
-                        color = if (selected.size >= 3) primary else NexaTextGrey,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                Text(
+                    text = "${selected.size} selected",
+                    color = if (selected.size >= 3) HotPink else White.copy(alpha = 0.4f),
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                    Button(
-                        onClick = {
-                            if (selected.size < 3) return@Button
-                            isSaving = true
-                            val uid = FirebaseAuth.getInstance().currentUser?.uid
-                            if (uid != null) {
-                                FirebaseFirestore.getInstance()
-                                    .collection("users").document(uid)
-                                    .update("interests", selected.toList())
-                                    .addOnSuccessListener {
-                                        isSaving = false
-                                        navController.navigate("home") {
-                                            popUpTo("interests") { inclusive = true }
-                                        }
-                                    }
-                                    .addOnFailureListener {
-                                        isSaving = false
-                                        // navigate anyway even if save fails
-                                        navController.navigate("home") {
-                                            popUpTo("interests") { inclusive = true }
-                                        }
-                                    }
-                            } else {
-                                // No firebase user, navigate anyway
-                                navController.navigate("home") {
-                                    popUpTo("interests") { inclusive = true }
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selected.size >= 3) primary else NexaTagBg
-                        ),
-                        shape = RoundedCornerShape(50.dp),
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        enabled = !isSaving
+                Button(
+                    onClick = { },
+                    enabled = selected.size >= 3 && !isSaving,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    contentPadding = PaddingValues(0.dp),
+                    shape = RoundedCornerShape(50.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                ) {
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(buttonGradient, RoundedCornerShape(50.dp)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        if (isSaving) {
-                            CircularProgressIndicator(
-                                color = Color.White,
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text(
-                                if (selected.size >= 3) "Let's Go! 🚀" else "Select at least 3",
-                                color = if (selected.size >= 3) Color.White else NexaTextGrey,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        Text(
+                            text = if (selected.size >= 3) "Let's Go 🚀" else "Select at least 3",
+                            color = White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Skip option
             Text(
-                "Skip for now",
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 14.sp,
+                text = "Skip for now",
+                color = White.copy(alpha = 0.55f),
+                fontSize = 13.sp,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().clickable {
-                    navController.navigate("home") {
-                        popUpTo("interests") { inclusive = true }
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        navController.navigate("home") {
+                            popUpTo("interests") { inclusive = true }
+                        }
                     }
-                }
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, backgroundColor = 0xFF06050F)
 @Composable
-fun InterestSelectionPreview() { InterestSelectionScreen(rememberNavController()) }
+fun InterestSelectionScreenPreview() {
+    InterestSelectionScreen(navController = rememberNavController())
+}

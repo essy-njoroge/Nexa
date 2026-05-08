@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="black">#FF000000</color>
+    <color name="ic_launcher_background">#FDFCFA</color>
     <color name="nexa_primary">#6C63FF</color>
     <color name="nexa_secondary">#00C9A7</color>
     <color name="white">#FFFFFF</color>

@@ -4,138 +4,212 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.*
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
-import com.essy.nexa.ui.theme.*
 import com.google.firebase.auth.FirebaseAuth
+
+// COLORS
+private val DeepMidnight = Color(0xFF06050F)
+private val HotPink = Color(0xFFFF2D9B)
+private val BlazeOrange = Color(0xFFFF6400)
+private val GoldYellow = Color(0xFFFFB300)
+private val White = Color.White
+
+private val Gradient = Brush.linearGradient(
+    listOf(HotPink, BlazeOrange, GoldYellow)
+)
 
 @Composable
 fun LoginScreen(navController: NavController) {
 
-    var email     by remember { mutableStateOf("") }
-    var password  by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
-    var errorMsg  by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var show by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf("") }
 
-    val primary = NexaPrimary
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DeepMidnight)
+            .padding(24.dp)
+    ) {
 
-    Box(modifier = Modifier.fillMaxSize().background(primary)) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
+            modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Center
         ) {
 
-            Text("Welcome Back", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Text("Sign in to your Nexa account", color = NexaTextWhite80, fontSize = 14.sp)
+            // HEADER
+            Text(
+                text = "NEXA",
+                fontSize = 34.sp,
+                fontWeight = FontWeight.Black,
+                color = White
+            )
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(Modifier.height(6.dp))
 
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(4.dp)
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
+            Box(
+                modifier = Modifier
+                    .height(4.dp)
+                    .width(120.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Gradient)
+            )
 
-                    OutlinedTextField(
-                        value = email, onValueChange = { email = it },
-                        placeholder = { Text("University Email") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp), singleLine = true
-                    )
+            Spacer(Modifier.height(32.dp))
 
-                    Spacer(modifier = Modifier.height(16.dp))
+            // EMAIL FIELD (FIXED WHITE CARD)
+            InputCard {
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    placeholder = { Text("Email") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = fieldColors()
+                )
+            }
 
-                    OutlinedTextField(
-                        value = password, onValueChange = { password = it },
-                        placeholder = { Text("Password") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp), singleLine = true
-                    )
+            Spacer(Modifier.height(14.dp))
 
-                    if (errorMsg.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(errorMsg, color = Color(0xFFE53935), fontSize = 13.sp)
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        "Forgot Password?", color = primary, fontSize = 13.sp,
-                        modifier = Modifier.align(Alignment.End).clickable {
-                            if (email.isNotEmpty())
-                                FirebaseAuth.getInstance().sendPasswordResetEmail(email.trim())
-                        }
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Button(
-                        onClick = {
-                            if (email.isBlank() || password.isBlank()) {
-                                errorMsg = "Please fill in all fields"
-                                return@Button
-                            }
-                            isLoading = true
-                            errorMsg = ""
-                            FirebaseAuth.getInstance()
-                                .signInWithEmailAndPassword(email.trim(), password)
-                                .addOnSuccessListener {
-                                    isLoading = false
-                                    navController.navigate("home") {
-                                        popUpTo("login") { inclusive = true }
-                                    }
-                                }
-                                .addOnFailureListener { e ->
-                                    isLoading = false
-                                    errorMsg = e.message ?: "Login failed. Check your credentials."
-                                }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = primary),
-                        shape = RoundedCornerShape(50.dp),
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        enabled = !isLoading
-                    ) {
-                        if (isLoading)
-                            CircularProgressIndicator(
-                                color = Color.White,
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp
+            // PASSWORD FIELD (FIXED WHITE CARD)
+            InputCard {
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    placeholder = { Text("Password") },
+                    singleLine = true,
+                    visualTransformation =
+                        if (show) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { show = !show }) {
+                            Icon(
+                                if (show) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = null,
+                                tint = HotPink
                             )
-                        else
-                            Text("Log In", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = fieldColors()
+                )
+            }
+
+            if (error.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text(error, color = Color.Red)
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // LOGIN BUTTON
+            Button(
+                onClick = {
+                    loading = true
+                    FirebaseAuth.getInstance()
+                        .signInWithEmailAndPassword(email, password)
+                        .addOnSuccessListener {
+                            loading = false
+                            navController.navigate("home")
+                        }
+                        .addOnFailureListener {
+                            loading = false
+                            error = it.message ?: "Login failed"
+                        }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(50),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                contentPadding = PaddingValues(0.dp),
+                enabled = !loading
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Gradient, RoundedCornerShape(50)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (loading) "Loading..." else "Login",
+                        color = White,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(Modifier.height(14.dp))
 
+            // SIGN UP LINK
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center
             ) {
-                Text("Don't have an account? ", color = Color.White)
                 Text(
-                    "Sign Up", color = Color.White, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { navController.navigate("register") }
+                    text = "Don't have an account? ",
+                    color = White.copy(0.6f),
+                    fontSize = 13.sp
+                )
+
+                Text(
+                    text = "Sign up",
+                    color = HotPink,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable {
+                        navController.navigate("register")
+                    }
                 )
             }
         }
     }
 }
 
-@Preview(showBackground = true)
+/* ───── FIX: WHITE INPUT BACKGROUND LIKE REGISTER ───── */
 @Composable
-fun LoginScreenPreview() { LoginScreen(rememberNavController()) }
+private fun InputCard(content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)   // <- FIXED: clear white like register
+            .padding(12.dp)
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun fieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = HotPink,
+    unfocusedBorderColor = Color.Black.copy(0.2f),
+    cursorColor = HotPink,
+    focusedTextColor = Color.Black,
+    unfocusedTextColor = Color.Black
+)
+
+@Preview
+@Composable
+fun LoginPreview() {
+    LoginScreen(rememberNavController())
+}

@@ -1,11 +1,13 @@
 package com.essy.nexa.ui.screens.clubs
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -13,6 +15,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -22,7 +26,6 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.essy.nexa.model.Club
-import com.essy.nexa.ui.theme.*
 
 val clubList = listOf(
     Club("1","Tech Club","Coding, hackathons, and tech talks for all skill levels","Technology",342,false,"💻"),
@@ -34,82 +37,207 @@ val clubList = listOf(
     Club("7","Music Society","Live performances, open mic nights, and production","Arts",134,false,"🎵"),
     Club("8","Debate Society","Critical thinking, public speaking, and competitions","Academic",89,false,"🎤")
 )
-val clubCats = listOf("All","Technology","Business","Arts","Sports","Environment","Academic")
+
+val clubCats = listOf(
+    "All",
+    "Technology",
+    "Business",
+    "Arts",
+    "Sports",
+    "Environment",
+    "Academic"
+)
+
+// COLORS
+private val DeepMidnight = Color(0xFF06050F)
+private val HotPink = Color(0xFFFF2D9B)
+private val BlazeOrange = Color(0xFFFF6400)
+private val GoldYellow = Color(0xFFFFB300)
+private val White = Color.White
 
 @Composable
 fun ClubsScreen(navController: NavController) {
-    var selectedCat by remember { mutableStateOf("All") }
-    var searchQuery by remember { mutableStateOf("") }
-    val primary = NexaPrimary
+
+    var selectedCat by remember {
+        mutableStateOf("All")
+    }
+
+    var searchQuery by remember {
+        mutableStateOf("")
+    }
 
     val filtered = clubList.filter {
         (selectedCat == "All" || it.category == selectedCat) &&
-        (searchQuery.isEmpty() || it.name.contains(searchQuery, ignoreCase = true))
+                (searchQuery.isEmpty() ||
+                        it.name.contains(searchQuery, true))
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(primary)) {
-        Column(modifier = Modifier.fillMaxSize()) {
+    val gradient = Brush.horizontalGradient(
+        listOf(
+            HotPink,
+            BlazeOrange,
+            GoldYellow
+        )
+    )
 
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DeepMidnight)
+    ) {
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp)
+        ) {
+
+            Spacer(modifier = Modifier.height(60.dp))
+
+            // HEADER
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Clubs", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Black)
-                IconButton(onClick = {}) {
-                    Icon(Icons.Default.Add, contentDescription = "Create", tint = Color.White)
+
+                Column(modifier = Modifier.weight(1f)) {
+
+                    Text(
+                        text = "Discover\nClubs",
+                        color = White,
+                        fontSize = 38.sp,
+                        lineHeight = 42.sp,
+                        fontWeight = FontWeight.Black
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Find communities that match your interests",
+                        color = White.copy(alpha = 0.55f),
+                        fontSize = 13.sp
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(54.dp)
+                        .clip(CircleShape)
+                        .background(
+                            White.copy(alpha = 0.08f)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Groups,
+                        contentDescription = null,
+                        tint = White,
+                        modifier = Modifier.size(28.dp)
+                    )
                 }
             }
 
-            Card(
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                modifier = Modifier.fillMaxSize(),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(0.dp)
-            ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-                    OutlinedTextField(
-                        value = searchQuery, onValueChange = { searchQuery = it },
-                        placeholder = { Text("Search clubs...") },
-                        leadingIcon = { Icon(Icons.Default.Search, null, tint = NexaTextGrey) },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        shape = RoundedCornerShape(12.dp), singleLine = true
+            // SEARCH
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = {
+                    searchQuery = it
+                },
+                placeholder = {
+                    Text(
+                        "Search clubs...",
+                        color = White.copy(alpha = 0.4f)
                     )
+                },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = null,
+                        tint = White.copy(alpha = 0.5f)
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = White,
+                    unfocusedTextColor = White,
+                    focusedBorderColor = HotPink.copy(alpha = 0.5f),
+                    unfocusedBorderColor = White.copy(alpha = 0.08f),
+                    focusedContainerColor = White.copy(alpha = 0.04f),
+                    unfocusedContainerColor = White.copy(alpha = 0.04f),
+                    cursorColor = HotPink
+                )
+            )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(clubCats) { cat ->
-                            val sel = selectedCat == cat
-                            Surface(
-                                shape = RoundedCornerShape(50.dp),
-                                color = if (sel) primary else NexaTagBg,
-                                modifier = Modifier.clickable { selectedCat = cat }
-                            ) {
-                                Text(cat, color = if (sel) Color.White else primary,
-                                    fontWeight = FontWeight.Medium, fontSize = 13.sp,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
+            // FILTERS
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+
+                items(clubCats) { cat ->
+
+                    val selected = selectedCat == cat
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50.dp))
+                            .background(
+                                if (selected)
+                                    gradient
+                                else
+                                    Brush.horizontalGradient(
+                                        listOf(
+                                            White.copy(alpha = 0.05f),
+                                            White.copy(alpha = 0.05f)
+                                        )
+                                    )
+                            )
+                            .clickable {
+                                selectedCat = cat
                             }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.weight(1f)
+                            .padding(
+                                horizontal = 18.dp,
+                                vertical = 10.dp
+                            )
                     ) {
-                        items(filtered) { club ->
-                            ClubCard(club = club, primary = primary, onClick = { navController.navigate("club_detail") })
-                        }
-                        item { Spacer(modifier = Modifier.height(80.dp)) }
+
+                        Text(
+                            text = cat,
+                            color =
+                                if (selected)
+                                    White
+                                else
+                                    White.copy(alpha = 0.7f),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // CLUB LIST
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 120.dp)
+            ) {
+
+                items(filtered) { club ->
+
+                    ClubCard(
+                        club = club,
+                        gradient = gradient,
+                        onClick = {
+                            navController.navigate("club_detail")
+                        }
+                    )
                 }
             }
         }
@@ -117,52 +245,166 @@ fun ClubsScreen(navController: NavController) {
 }
 
 @Composable
-fun ClubCard(club: Club, primary: Color, onClick: () -> Unit) {
-    var joined by remember { mutableStateOf(club.isJoined) }
+fun ClubCard(
+    club: Club,
+    gradient: Brush,
+    onClick: () -> Unit
+) {
 
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = NexaTagBg),
-        elevation = CardDefaults.cardElevation(0.dp)
-    ) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(52.dp).background(primary.copy(alpha = 0.12f), RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(club.iconEmoji, fontSize = 26.sp)
+    var joined by remember {
+        mutableStateOf(club.isJoined)
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(
+                White.copy(alpha = 0.05f)
+            )
+            .clickable {
+                onClick()
             }
+            .padding(18.dp)
+    ) {
 
-            Spacer(modifier = Modifier.width(12.dp))
+        Column {
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(club.name, color = NexaTextDark, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Spacer(modifier = Modifier.height(3.dp))
-                Text(club.description, color = NexaTextGrey, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.People, null, tint = NexaTextGrey, modifier = Modifier.size(13.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("${club.members} members", color = NexaTextGrey, fontSize = 12.sp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+
+                // ICON
+                Box(
+                    modifier = Modifier
+                        .size(68.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(
+                            gradient
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+
+                    Text(
+                        text = club.iconEmoji,
+                        fontSize = 30.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+
+                    Text(
+                        text = club.name,
+                        color = White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = club.category,
+                        color = HotPink,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+
+                        Icon(
+                            Icons.Default.Groups,
+                            contentDescription = null,
+                            tint = White.copy(alpha = 0.45f),
+                            modifier = Modifier.size(14.dp)
+                        )
+
+                        Spacer(modifier = Modifier.width(5.dp))
+
+                        Text(
+                            text = "${club.members} members",
+                            color = White.copy(alpha = 0.45f),
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-            Button(
-                onClick = { joined = !joined },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (joined) Color.White else primary,
-                    contentColor = if (joined) primary else Color.White
-                ),
-                shape = RoundedCornerShape(50.dp),
-                border = if (joined) androidx.compose.foundation.BorderStroke(1.dp, primary) else null,
-                modifier = Modifier.width(80.dp).height(36.dp),
-                contentPadding = PaddingValues(0.dp),
-                elevation = ButtonDefaults.buttonElevation(0.dp)
+            Text(
+                text = club.description,
+                color = White.copy(alpha = 0.7f),
+                fontSize = 13.sp,
+                lineHeight = 21.sp,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // BUTTONS
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(if (joined) "Joined" else "Join", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+
+                Button(
+                    onClick = {
+                        joined = !joined
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Transparent
+                    ),
+                    border = BorderStroke(
+                        1.dp,
+                        if (joined)
+                            HotPink
+                        else
+                            White.copy(alpha = 0.08f)
+                    ),
+                    shape = RoundedCornerShape(50.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+
+                    Text(
+                        text =
+                            if (joined)
+                                "Joined"
+                            else
+                                "Join Club",
+                        color = White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Button(
+                    onClick = {},
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Transparent
+                    ),
+                    contentPadding = PaddingValues(0.dp),
+                    shape = RoundedCornerShape(50.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(
+                            gradient,
+                            RoundedCornerShape(50.dp)
+                        )
+                ) {
+
+                    Text(
+                        text = "View",
+                        color = White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }
@@ -171,5 +413,8 @@ fun ClubCard(club: Club, primary: Color, onClick: () -> Unit) {
 @Preview(showBackground = true)
 @Composable
 fun ClubsScreenPreview() {
-    ClubsScreen(rememberNavController())
+
+    ClubsScreen(
+        navController = rememberNavController()
+    )
 }
