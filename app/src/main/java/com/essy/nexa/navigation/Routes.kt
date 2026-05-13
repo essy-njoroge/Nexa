@@ -25,6 +25,7 @@ object Routes {
     const val LOST_FOUND    = "lost_found"
     const val TIMETABLE     = "timetable"
     const val LEADERBOARD   = "leaderboard"
+    const val CREATE_EVENT   = "create_event"
 }
 
 val bottomNavRoutes = listOf(

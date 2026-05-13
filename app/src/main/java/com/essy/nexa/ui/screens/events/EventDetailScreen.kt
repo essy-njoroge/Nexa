@@ -27,16 +27,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.essy.nexa.model.Event
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
 private val DeepMidnight = Color(0xFF06050F)
-private val DarkSurface  = Color(0xFF0D0918)
 private val CardBg       = Color(0xFF100E1A)
-private val CardBg2      = Color(0xFF13101F)
 private val HotPink      = Color(0xFFFF2D9B)
 private val BlazeOrange  = Color(0xFFFF6400)
 private val GoldYellow   = Color(0xFFFFB300)
 private val VioletDeep   = Color(0xFF7B2FFF)
+private val TealGreen    = Color(0xFF00D4AA)
 private val White        = Color.White
 private val TextMuted    = White.copy(alpha = 0.45f)
 private val CardBorder   = White.copy(alpha = 0.07f)
@@ -61,7 +64,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRadialOrb(
 
 // ─── Background ───────────────────────────────────────────────────────────────
 @Composable
-private fun EventBackground() {
+private fun EventDetailBackground() {
     val inf = rememberInfiniteTransition(label = "bg")
     val o1 by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(8000, easing = EaseInOutSine), RepeatMode.Reverse), "o1")
     val gr by inf.animateFloat(0f, 36f, infiniteRepeatable(tween(3000, easing = LinearEasing), RepeatMode.Restart), "gr")
@@ -136,263 +139,342 @@ private fun SectionHeader(title: String, trailing: String = "") {
 }
 
 // ─── EventDetailScreen ────────────────────────────────────────────────────────
+// FIX 1: Accept eventId so we load the right event, not always index 0
 @Composable
-fun EventDetailScreen(navController: NavController) {
-    var isRsvped by remember { mutableStateOf(false) }
-    val event = eventList[0]
+fun EventDetailScreen(navController: NavController, eventId: String?) {
+    val db  = FirebaseFirestore.getInstance()
+    val uid = FirebaseAuth.getInstance().currentUser?.uid
 
-    val categoryColor = when (event.category.lowercase()) {
-        "career"    -> GoldYellow
-        "tech"      -> HotPink
-        "club"      -> VioletDeep
-        "study"     -> Color(0xFF00D4AA)
-        else        -> HotPink
+    // FIX 1: Load the event from Firestore by ID; fall back to hardcoded list if offline
+    var event    by remember { mutableStateOf<Event?>(eventList.find { it.id == eventId } ?: eventList[0]) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    // FIX 2: isRsvped loaded from Firestore — persists across sessions
+    var isRsvped  by remember { mutableStateOf(false) }
+    var isRsvping by remember { mutableStateOf(false) } // prevents double-tap
+
+    // Load event + RSVP state from Firestore
+    LaunchedEffect(eventId) {
+        if (eventId == null) { isLoading = false; return@LaunchedEffect }
+
+        // Load event document
+        db.collection("events").document(eventId).get()
+            .addOnSuccessListener { doc ->
+                if (doc.exists()) {
+                    event = Event(
+                        id            = doc.id,
+                        title         = doc.getString("title") ?: "",
+                        description   = doc.getString("description") ?: "",
+                        location      = doc.getString("location") ?: "",
+                        date          = doc.getString("date") ?: "",
+                        time          = doc.getString("time") ?: "",
+                        category      = doc.getString("category") ?: "General",
+                        attendees     = (doc.getLong("attendees") ?: 0).toInt(),
+                        maxAttendees  = (doc.getLong("maxAttendees") ?: 100).toInt(),
+                        organizerName = doc.getString("organizerName") ?: "",
+                        isRsvped      = false
+                    )
+                }
+                isLoading = false
+            }
+            .addOnFailureListener { isLoading = false }
+
+        // FIX 2: Check if current user already RSVPed
+        if (uid != null) {
+            db.collection("events").document(eventId)
+                .collection("rsvps").document(uid).get()
+                .addOnSuccessListener { doc -> isRsvped = doc.exists() }
+        }
     }
 
+    // FIX 2: Toggle RSVP in Firestore + update attendee count atomically
+    fun toggleRsvp() {
+        val ev = event ?: return
+        if (uid == null || isRsvping) return
+        isRsvping = true
+
+        val rsvpRef = db.collection("events").document(ev.id)
+            .collection("rsvps").document(uid)
+        val eventRef = db.collection("events").document(ev.id)
+
+        if (isRsvped) {
+            // Un-RSVP
+            rsvpRef.delete().addOnSuccessListener {
+                eventRef.update("attendees", FieldValue.increment(-1))
+                isRsvped  = false
+                isRsvping = false
+                event = ev.copy(attendees = (ev.attendees - 1).coerceAtLeast(0))
+            }.addOnFailureListener { isRsvping = false }
+        } else {
+            // RSVP
+            rsvpRef.set(mapOf("uid" to uid, "timestamp" to FieldValue.serverTimestamp()))
+                .addOnSuccessListener {
+                    eventRef.update("attendees", FieldValue.increment(1))
+                    isRsvped  = true
+                    isRsvping = false
+                    event = ev.copy(attendees = ev.attendees + 1)
+                }.addOnFailureListener { isRsvping = false }
+        }
+    }
+
+    val ev = event ?: return
+
+    // FIX 4: category color uses original case — matches your category values exactly
+    val categoryColor = eventCategoryColor(ev.category)
+
     Box(modifier = Modifier.fillMaxSize().background(DeepMidnight)) {
-        EventBackground()
+        EventDetailBackground()
         CornerBrackets()
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 110.dp)
-        ) {
-
-            // ── Top bar ──
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(White.copy(alpha = 0.06f))
-                            .border(1.dp, White.copy(alpha = 0.10f), CircleShape)
-                            .clickable { navController.popBackStack() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.ArrowBack, null, tint = White, modifier = Modifier.size(18.dp))
-                    }
-
-                    Spacer(Modifier.width(14.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        // Category tag
-                        Box(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(categoryColor.copy(alpha = 0.12f))
-                                .border(1.dp, categoryColor.copy(alpha = 0.30f), CircleShape)
-                                .padding(horizontal = 10.dp, vertical = 3.dp)
-                        ) {
-                            Text(event.category, color = categoryColor, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        Text(event.title, color = White, fontSize = 20.sp, fontWeight = FontWeight.Black, lineHeight = 24.sp)
-                        Text("by ${event.organizerName}", color = TextMuted, fontSize = 12.sp)
-                    }
-                }
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = HotPink, strokeWidth = 2.dp, modifier = Modifier.size(32.dp))
             }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 110.dp)
+            ) {
 
-            // ── Hero banner ──
-            item {
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 20.dp)
-                        .fillMaxWidth()
-                        .height(160.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(
-                            Brush.linearGradient(listOf(
-                                HotPink.copy(alpha = 0.30f), VioletDeep.copy(alpha = 0.30f), GoldYellow.copy(alpha = 0.20f)
-                            ))
-                        )
-                        .border(1.dp, White.copy(alpha = 0.08f), RoundedCornerShape(20.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Inner radial glow
-                    Box(modifier = Modifier.fillMaxSize().drawBehind {
-                        drawRadialOrb(Offset(size.width * 0.3f, size.height * 0.4f), size.width * 0.5f, HotPink, 0.8f)
-                        drawRadialOrb(Offset(size.width * 0.75f, size.height * 0.6f), size.width * 0.4f, GoldYellow, 0.6f)
-                    })
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("🎯", fontSize = 48.sp)
-                        Spacer(Modifier.height(8.dp))
-                        Text(event.title, color = White, fontWeight = FontWeight.Black, fontSize = 18.sp)
-                    }
-                }
-                Spacer(Modifier.height(20.dp))
-            }
-
-            // ── Date / Time / Location chips ──
-            item {
-                Column(
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        InfoChip(Icons.Default.CalendarToday, event.date, Modifier.weight(1f))
-                        InfoChip(Icons.Default.AccessTime, event.time, Modifier.weight(1f))
-                    }
-                    InfoChip(Icons.Default.LocationOn, event.location, Modifier.fillMaxWidth())
-                }
-                Spacer(Modifier.height(24.dp))
-            }
-
-            // ── About ──
-            item {
-                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SectionHeader("About This Event")
-                    Spacer(Modifier.height(12.dp))
-                    Box(
+                // ── Top bar ──
+                item {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(CardBg)
-                            .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-                            .padding(16.dp)
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            "${event.description}\n\nThis is a flagship event for all students. Come with ideas, leave with connections and new skills. Refreshments will be provided.",
-                            color = White.copy(alpha = 0.70f),
-                            fontSize = 14.sp,
-                            lineHeight = 24.sp
-                        )
-                    }
-                }
-                Spacer(Modifier.height(24.dp))
-            }
-
-            // ── Attendees ──
-            item {
-                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SectionHeader("Who's Attending", "${event.attendees} people")
-                    Spacer(Modifier.height(14.dp))
-
-                    // Avatar stack
-                    Row(horizontalArrangement = Arrangement.spacedBy((-10).dp)) {
-                        listOf("A", "B", "G", "K", "F").forEachIndexed { i, letter ->
-                            val colors = listOf(
-                                listOf(HotPink, BlazeOrange),
-                                listOf(BlazeOrange, GoldYellow),
-                                listOf(VioletDeep, HotPink),
-                                listOf(GoldYellow, BlazeOrange),
-                                listOf(HotPink, VioletDeep)
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(Brush.linearGradient(colors[i]))
-                                    .border(2.dp, DeepMidnight, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(letter, color = White, fontWeight = FontWeight.Black, fontSize = 14.sp)
-                            }
-                        }
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(White.copy(alpha = 0.08f))
-                                .border(2.dp, DeepMidnight, CircleShape)
-                                .border(1.dp, White.copy(alpha = 0.15f), CircleShape),
+                                .background(White.copy(alpha = 0.06f))
+                                .border(1.dp, White.copy(alpha = 0.10f), CircleShape)
+                                .clickable { navController.popBackStack() },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("+${event.attendees - 5}", color = GoldYellow, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Icon(Icons.Default.ArrowBack, null, tint = White, modifier = Modifier.size(18.dp))
                         }
-                    }
 
-                    Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.width(14.dp))
 
-                    // Capacity bar
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Capacity", color = TextMuted, fontSize = 12.sp)
-                        Spacer(Modifier.weight(1f))
-                        Text("${event.attendees}/${event.maxAttendees}", color = GoldYellow, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(White.copy(alpha = 0.08f))
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(event.attendees.toFloat() / event.maxAttendees)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(Brush.horizontalGradient(listOf(HotPink, GoldYellow)))
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(categoryColor.copy(alpha = 0.12f))
+                                    .border(1.dp, categoryColor.copy(alpha = 0.30f), CircleShape)
+                                    .padding(horizontal = 10.dp, vertical = 3.dp)
+                            ) {
+                                Text(ev.category, color = categoryColor, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Text(ev.title, color = White, fontSize = 20.sp, fontWeight = FontWeight.Black, lineHeight = 24.sp)
+                            Text("by ${ev.organizerName}", color = TextMuted, fontSize = 12.sp)
+                        }
                     }
                 }
-                Spacer(Modifier.height(28.dp))
-            }
 
-            // ── RSVP buttons ──
-            item {
-                Column(
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // RSVP button
-                    Button(
-                        onClick = { isRsvped = !isRsvped },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                        shape = RoundedCornerShape(50.dp),
-                        contentPadding = PaddingValues(0.dp),
-                        modifier = Modifier.fillMaxWidth().height(52.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    if (isRsvped)
-                                        Brush.linearGradient(listOf(Color(0xFF00D4AA), Color(0xFF00A87C)))
-                                    else
-                                        FireGradient,
-                                    RoundedCornerShape(50.dp)
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (isRsvped) "✓  You're Going!" else "RSVP for This Event",
-                                color = White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                letterSpacing = 0.3.sp
+                // ── Hero banner ──
+                item {
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 20.dp)
+                            .fillMaxWidth()
+                            .height(160.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(
+                                Brush.linearGradient(listOf(
+                                    HotPink.copy(alpha = 0.30f), VioletDeep.copy(alpha = 0.30f), GoldYellow.copy(alpha = 0.20f)
+                                ))
                             )
+                            .border(1.dp, White.copy(alpha = 0.08f), RoundedCornerShape(20.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize().drawBehind {
+                            drawRadialOrb(Offset(size.width * 0.3f, size.height * 0.4f), size.width * 0.5f, HotPink, 0.8f)
+                            drawRadialOrb(Offset(size.width * 0.75f, size.height * 0.6f), size.width * 0.4f, GoldYellow, 0.6f)
+                        })
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("🎯", fontSize = 48.sp)
+                            Spacer(Modifier.height(8.dp))
+                            Text(ev.title, color = White, fontWeight = FontWeight.Black, fontSize = 18.sp)
                         }
                     }
+                    Spacer(Modifier.height(20.dp))
+                }
 
-                    // QR check-in (only after RSVP)
-                    if (isRsvped) {
+                // ── Date / Time / Location chips ──
+                item {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            InfoChip(Icons.Default.CalendarToday, ev.date, Modifier.weight(1f))
+                            InfoChip(Icons.Default.AccessTime, ev.time, Modifier.weight(1f))
+                        }
+                        InfoChip(Icons.Default.LocationOn, ev.location, Modifier.fillMaxWidth())
+                    }
+                    Spacer(Modifier.height(24.dp))
+                }
+
+                // ── About ──
+                item {
+                    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        SectionHeader("About This Event")
+                        Spacer(Modifier.height(12.dp))
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp)
-                                .clip(RoundedCornerShape(50.dp))
-                                .background(HotPink.copy(alpha = 0.08f))
-                                .border(
-                                    1.5.dp,
-                                    Brush.horizontalGradient(listOf(HotPink.copy(alpha = 0.50f), GoldYellow.copy(alpha = 0.50f))),
-                                    RoundedCornerShape(50.dp)
-                                )
-                                .clickable { navController.navigate("qr_checkin") },
-                            contentAlignment = Alignment.Center
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(CardBg)
+                                .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+                                .padding(16.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            Text(
+                                "${ev.description}\n\nThis is a flagship event for all students. Come with ideas, leave with connections and new skills. Refreshments will be provided.",
+                                color = White.copy(alpha = 0.70f),
+                                fontSize = 14.sp,
+                                lineHeight = 24.sp
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(24.dp))
+                }
+
+                // ── Attendees ──
+                item {
+                    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        SectionHeader("Who's Attending", "${ev.attendees} people")
+                        Spacer(Modifier.height(14.dp))
+
+                        Row(horizontalArrangement = Arrangement.spacedBy((-10).dp)) {
+                            listOf("A", "B", "G", "K", "F").forEachIndexed { i, letter ->
+                                val colors = listOf(
+                                    listOf(HotPink, BlazeOrange),
+                                    listOf(BlazeOrange, GoldYellow),
+                                    listOf(VioletDeep, HotPink),
+                                    listOf(GoldYellow, BlazeOrange),
+                                    listOf(HotPink, VioletDeep)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(Brush.linearGradient(colors[i]))
+                                        .border(2.dp, DeepMidnight, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(letter, color = White, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                                }
+                            }
+                            if (ev.attendees > 5) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(White.copy(alpha = 0.08f))
+                                        .border(2.dp, DeepMidnight, CircleShape)
+                                        .border(1.dp, White.copy(alpha = 0.15f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("+${ev.attendees - 5}", color = GoldYellow, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(14.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Capacity", color = TextMuted, fontSize = 12.sp)
+                            Spacer(Modifier.weight(1f))
+                            Text("${ev.attendees}/${ev.maxAttendees}", color = GoldYellow, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(White.copy(alpha = 0.08f))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth((ev.attendees.toFloat() / ev.maxAttendees).coerceIn(0f, 1f))
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(Brush.horizontalGradient(listOf(HotPink, GoldYellow)))
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(28.dp))
+                }
+
+                // ── RSVP buttons ──
+                item {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // FIX 2: calls toggleRsvp() which writes to Firestore
+                        Button(
+                            onClick = { toggleRsvp() },
+                            enabled = !isRsvping,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                            shape = RoundedCornerShape(50.dp),
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.fillMaxWidth().height(52.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        if (isRsvped)
+                                            Brush.linearGradient(listOf(TealGreen, Color(0xFF00A87C)))
+                                        else
+                                            FireGradient,
+                                        RoundedCornerShape(50.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.QrCodeScanner, null, tint = HotPink, modifier = Modifier.size(18.dp))
-                                Text("Check In with QR Code", color = HotPink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                if (isRsvping) {
+                                    CircularProgressIndicator(color = White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                                } else {
+                                    Text(
+                                        text = if (isRsvped) "✓  You're Going!" else "RSVP for This Event",
+                                        color = White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        letterSpacing = 0.3.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        // FIX 3: pass eventId to qr_checkin so it knows which event
+                        if (isRsvped) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp)
+                                    .clip(RoundedCornerShape(50.dp))
+                                    .background(HotPink.copy(alpha = 0.08f))
+                                    .border(
+                                        1.5.dp,
+                                        Brush.horizontalGradient(listOf(HotPink.copy(alpha = 0.50f), GoldYellow.copy(alpha = 0.50f))),
+                                        RoundedCornerShape(50.dp)
+                                    )
+                                    .clickable { navController.navigate("qr_checkin/${ev.id}") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(Icons.Default.QrCodeScanner, null, tint = HotPink, modifier = Modifier.size(18.dp))
+                                    Text("Check In with QR Code", color = HotPink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                }
                             }
                         }
                     }
@@ -405,5 +487,5 @@ fun EventDetailScreen(navController: NavController) {
 @Preview(showBackground = true, backgroundColor = 0xFF06050F)
 @Composable
 fun EventDetailPreview() {
-    EventDetailScreen(rememberNavController())
+    EventDetailScreen(rememberNavController(), eventId = "1")
 }

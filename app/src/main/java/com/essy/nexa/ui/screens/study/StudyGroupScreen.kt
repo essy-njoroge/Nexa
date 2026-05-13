@@ -30,6 +30,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.essy.nexa.model.StudyGroup
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
@@ -41,14 +42,13 @@ private val BlazeOrange  = Color(0xFFFF6400)
 private val GoldYellow   = Color(0xFFFFB300)
 private val VioletDeep   = Color(0xFF7B2FFF)
 private val VioletLight  = Color(0xFFA855F7)
-private val CobaltBlue   = Color(0xFF00A3FF)
 private val White        = Color.White
 private val TextMuted    = White.copy(alpha = 0.45f)
 private val CardBorder   = White.copy(alpha = 0.07f)
 
-private val FireGradient = Brush.linearGradient(listOf(HotPink, BlazeOrange, GoldYellow))
+private val FireGradient   = Brush.linearGradient(listOf(HotPink, BlazeOrange, GoldYellow))
+private val VioletGradient = Brush.linearGradient(listOf(VioletLight, VioletDeep))
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
 val studyGroups = listOf(
     StudyGroup("1","Computer Science","Algorithms & Data Structures", listOf("Kevin","Aisha","Brian","Grace"),5,"Tues & Thurs 6PM"),
     StudyGroup("2","Computer Science","Mobile Development (Android)", listOf("James","Fatima","Kevin"),4,"Fridays 4PM"),
@@ -59,17 +59,14 @@ val studyGroups = listOf(
     StudyGroup("7","Computer Science","Computer Networks", listOf("Tom","Rita","Mark"),4,"Fridays 3PM")
 )
 
-// Module → keywords that match it in the schedule / topic
 private val moduleKeywords = mapOf(
-    "Algorithms"    to listOf("algorithms","data structures"),
-    "Mobile Dev"    to listOf("mobile","android"),
-    "Databases"     to listOf("database","sql"),
-    "Networks"      to listOf("networks","networking"),
-    "AI & ML"       to listOf("ai","machine learning","ml"),
-    "Software Eng"  to listOf("software engineering","software eng")
+    "Algorithms"   to listOf("algorithms","data structures"),
+    "Mobile Dev"   to listOf("mobile","android"),
+    "Databases"    to listOf("database","sql"),
+    "Networks"     to listOf("networks","networking"),
+    "AI & ML"      to listOf("ai","machine learning","ml"),
+    "Software Eng" to listOf("software engineering","software eng")
 )
-
-// Day → keywords that appear in schedule strings
 private val dayKeywords = mapOf(
     "Monday"    to listOf("mon"),
     "Tuesday"   to listOf("tues","tue"),
@@ -78,12 +75,10 @@ private val dayKeywords = mapOf(
     "Friday"    to listOf("fri")
 )
 
-// Score a group 0-2 based on how well it matches selected module + day
-private fun matchScore(group: StudyGroup, module: String, day: String): Int {
+fun matchScore(group: StudyGroup, module: String, day: String): Int {
     var score = 0
     val topicLower = group.topic.lowercase()
     val schedLower = group.schedule.lowercase()
-
     if (module.isNotEmpty()) {
         val keywords = moduleKeywords[module] ?: listOf(module.lowercase())
         if (keywords.any { topicLower.contains(it) }) score++
@@ -98,7 +93,7 @@ private fun matchScore(group: StudyGroup, module: String, day: String): Int {
 val modules = listOf("Algorithms","Mobile Dev","Databases","Networks","AI & ML","Software Eng")
 val days    = listOf("Monday","Tuesday","Wednesday","Thursday","Friday")
 
-// ─── Radial orb ───────────────────────────────────────────────────────────────
+// ─── Canvas helpers ───────────────────────────────────────────────────────────
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRadialOrb(
     center: Offset, radius: Float, color: Color, strength: Float = 1f
 ) {
@@ -113,7 +108,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRadialOrb(
 }
 
 @Composable
-private fun StudyBackground() {
+fun StudyBackground() {
     val inf = rememberInfiniteTransition(label = "bg")
     val o1 by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(8000, easing = EaseInOutSine), RepeatMode.Reverse), "o1")
     val gr by inf.animateFloat(0f, 36f, infiniteRepeatable(tween(3000, easing = LinearEasing), RepeatMode.Restart), "gr")
@@ -128,7 +123,7 @@ private fun StudyBackground() {
 }
 
 @Composable
-private fun CornerBrackets() {
+fun StudyCornerBrackets() {
     Box(modifier = Modifier.fillMaxSize()) {
         val sw = 1.5.dp
         Box(modifier = Modifier.align(Alignment.TopStart).padding(14.dp).size(18.dp).drawBehind {
@@ -154,16 +149,12 @@ private fun CornerBrackets() {
     }
 }
 
-// ─── Selector chip ────────────────────────────────────────────────────────────
 @Composable
 private fun SelectorChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(CircleShape)
-            .background(
-                if (selected) Brush.linearGradient(listOf(VioletLight, VioletDeep))
-                else Brush.linearGradient(listOf(White.copy(alpha = 0.06f), White.copy(alpha = 0.06f)))
-            )
+            .background(if (selected) VioletGradient else Brush.linearGradient(listOf(White.copy(alpha = 0.06f), White.copy(alpha = 0.06f))))
             .border(1.dp, if (selected) Color.Transparent else White.copy(alpha = 0.10f), CircleShape)
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 9.dp)
@@ -172,13 +163,14 @@ private fun SelectorChip(label: String, selected: Boolean, onClick: () -> Unit) 
     }
 }
 
-// ─── Study group card ─────────────────────────────────────────────────────────
+// ─── Study group card — JOIN now navigates to detail ─────────────────────────
 @Composable
-fun StudyGroupCard(group: StudyGroup, matchScore: Int) {
-    var joined by remember { mutableStateOf(false) }
+fun StudyGroupCard(group: StudyGroup, matchScore: Int, navController: NavController) {
+    var isJoining by remember { mutableStateOf(false) }
+    var joined    by remember { mutableStateOf(false) }
 
-    val isPerfect  = matchScore == 2
-    val isPartial  = matchScore == 1
+    val isPerfect   = matchScore == 2
+    val isPartial   = matchScore == 1
     val borderColor = when {
         isPerfect -> VioletLight.copy(alpha = 0.40f)
         isPartial -> HotPink.copy(alpha = 0.22f)
@@ -194,33 +186,22 @@ fun StudyGroupCard(group: StudyGroup, matchScore: Int) {
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // Icon circle
             Box(
-                modifier = Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (isPerfect) Brush.linearGradient(listOf(VioletLight, VioletDeep))
-                        else Brush.linearGradient(listOf(HotPink.copy(alpha = 0.60f), BlazeOrange.copy(alpha = 0.60f)))
-                    ),
+                modifier = Modifier.size(46.dp).clip(CircleShape)
+                    .background(if (isPerfect) VioletGradient else Brush.linearGradient(listOf(HotPink.copy(alpha = 0.60f), BlazeOrange.copy(alpha = 0.60f)))),
                 contentAlignment = Alignment.Center
             ) {
                 Box(modifier = Modifier.fillMaxSize().padding(2.dp).clip(CircleShape).background(DarkSurface), contentAlignment = Alignment.Center) {
                     Text("📚", fontSize = 20.sp)
                 }
             }
-
             Spacer(Modifier.width(12.dp))
-
             Column(modifier = Modifier.weight(1f)) {
                 Text(group.topic, color = White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(group.course, color = TextMuted, fontSize = 12.sp)
             }
-
-            // Member count badge
             Box(
-                modifier = Modifier
-                    .clip(CircleShape)
+                modifier = Modifier.clip(CircleShape)
                     .background(VioletLight.copy(alpha = 0.10f))
                     .border(1.dp, VioletLight.copy(alpha = 0.25f), CircleShape)
                     .padding(horizontal = 10.dp, vertical = 4.dp)
@@ -231,71 +212,90 @@ fun StudyGroupCard(group: StudyGroup, matchScore: Int) {
 
         Spacer(Modifier.height(10.dp))
 
-        // Schedule
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.Schedule, null, tint = GoldYellow.copy(alpha = 0.70f), modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(5.dp))
             Text(group.schedule, color = TextMuted, fontSize = 12.sp)
         }
-
         Spacer(Modifier.height(6.dp))
-
-        // Members preview
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.People, null, tint = TextMuted.copy(alpha = 0.70f), modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(5.dp))
-            Text(group.members.take(3).joinToString(", ") + if (group.members.size > 3) " +${group.members.size - 3}" else "", color = TextMuted, fontSize = 12.sp)
+            Text(
+                group.members.take(3).joinToString(", ") + if (group.members.size > 3) " +${group.members.size - 3}" else "",
+                color = TextMuted, fontSize = 12.sp
+            )
         }
 
-        // Match indicator
         if (matchScore > 0) {
             Spacer(Modifier.height(10.dp))
             Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(
-                        if (isPerfect) Brush.linearGradient(listOf(VioletLight.copy(alpha = 0.15f), VioletDeep.copy(alpha = 0.15f)))
-                        else Brush.linearGradient(listOf(HotPink.copy(alpha = 0.10f), BlazeOrange.copy(alpha = 0.10f)))
-                    )
+                modifier = Modifier.clip(CircleShape)
+                    .background(if (isPerfect) Brush.linearGradient(listOf(VioletLight.copy(alpha = 0.15f), VioletDeep.copy(alpha = 0.15f))) else Brush.linearGradient(listOf(HotPink.copy(alpha = 0.10f), BlazeOrange.copy(alpha = 0.10f))))
                     .border(1.dp, if (isPerfect) VioletLight.copy(alpha = 0.30f) else HotPink.copy(alpha = 0.20f), CircleShape)
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
-                Text(
-                    if (isPerfect) "✦ Perfect match" else "~ Partial match",
-                    color = if (isPerfect) VioletLight else HotPink,
-                    fontSize = 10.sp, fontWeight = FontWeight.Bold
-                )
+                Text(if (isPerfect) "✦ Perfect match" else "~ Partial match",
+                    color = if (isPerfect) VioletLight else HotPink, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
 
         Spacer(Modifier.height(12.dp))
-
         HorizontalDivider(color = White.copy(alpha = 0.06f))
-
         Spacer(Modifier.height(10.dp))
 
-        // Join button
+        // ── JOIN BUTTON — saves to Firestore then navigates ──
         Button(
-            onClick = { joined = !joined },
+            onClick = {
+                if (joined) {
+                    // Already joined — just navigate to detail
+                    navController.navigate("study_group_detail/${group.id}")
+                    return@Button
+                }
+                isJoining = true
+                val uid  = FirebaseAuth.getInstance().currentUser?.uid
+                val name = FirebaseAuth.getInstance().currentUser?.displayName ?: "You"
+                if (uid != null) {
+                    // Add user to the group's members array in Firestore
+                    FirebaseFirestore.getInstance()
+                        .collection("study_groups")
+                        .document(group.id)
+                        .update("members", FieldValue.arrayUnion(name))
+                        .addOnCompleteListener {
+                            isJoining = false
+                            joined    = true
+                            navController.navigate("study_group_detail/${group.id}")
+                        }
+                } else {
+                    // Not logged in — still navigate for demo
+                    isJoining = false
+                    joined    = true
+                    navController.navigate("study_group_detail/${group.id}")
+                }
+            },
+            enabled = !isJoining,
             colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
             shape = RoundedCornerShape(50.dp),
             contentPadding = PaddingValues(0.dp),
             modifier = Modifier.fillMaxWidth().height(42.dp)
         ) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
+                modifier = Modifier.fillMaxSize()
                     .background(
                         if (joined) Brush.linearGradient(listOf(GoldYellow.copy(alpha = 0.80f), BlazeOrange.copy(alpha = 0.80f)))
-                        else Brush.linearGradient(listOf(VioletLight, VioletDeep)),
+                        else VioletGradient,
                         RoundedCornerShape(50.dp)
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    if (joined) "✓  Joined" else "Join Group",
-                    color = White, fontWeight = FontWeight.Bold, fontSize = 13.sp
-                )
+                if (isJoining) {
+                    CircularProgressIndicator(color = White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Text(
+                        if (joined) "✓  View Group →" else "Join Group",
+                        color = White, fontWeight = FontWeight.Bold, fontSize = 13.sp
+                    )
+                }
             }
         }
     }
@@ -308,14 +308,12 @@ fun StudyGroupScreen(navController: NavController) {
     var selectedDay    by remember { mutableStateOf("") }
     var showMatches    by remember { mutableStateOf(false) }
     var isMatching     by remember { mutableStateOf(false) }
+    var userCourse     by remember { mutableStateOf("") }
 
-    // Pre-fill from user's Firestore profile (course / availability)
-    var userCourse by remember { mutableStateOf("") }
     LaunchedEffect(Unit) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@LaunchedEffect
         FirebaseFirestore.getInstance().collection("users").document(uid).get()
             .addOnSuccessListener { doc ->
-                // If user registered with a course hint, try to auto-select a module
                 userCourse = doc.getString("course") ?: ""
                 val hint = userCourse.lowercase()
                 val autoModule = modules.firstOrNull { mod ->
@@ -326,7 +324,6 @@ fun StudyGroupScreen(navController: NavController) {
             }
     }
 
-    // Ranked results: perfect matches first, then partial, then rest
     val rankedGroups = remember(selectedModule, selectedDay, showMatches) {
         if (!showMatches) emptyList()
         else studyGroups
@@ -336,14 +333,10 @@ fun StudyGroupScreen(navController: NavController) {
 
     Box(modifier = Modifier.fillMaxSize().background(DeepMidnight)) {
         StudyBackground()
-        CornerBrackets()
+        StudyCornerBrackets()
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 100.dp)
-        ) {
+        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 100.dp)) {
 
-            // ── Top bar ──
             item {
                 Spacer(Modifier.height(16.dp))
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -365,40 +358,27 @@ fun StudyGroupScreen(navController: NavController) {
                 Spacer(Modifier.height(20.dp))
             }
 
-            // ── AI badge ──
             item {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Brush.linearGradient(listOf(VioletDeep.copy(alpha = 0.14f), HotPink.copy(alpha = 0.10f))))
                         .border(1.dp, VioletLight.copy(alpha = 0.22f), RoundedCornerShape(16.dp))
                         .padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier.size(38.dp).clip(CircleShape)
-                            .background(VioletLight.copy(alpha = 0.15f))
-                            .border(1.dp, VioletLight.copy(alpha = 0.30f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.size(38.dp).clip(CircleShape).background(VioletLight.copy(alpha = 0.15f)).border(1.dp, VioletLight.copy(alpha = 0.30f), CircleShape), contentAlignment = Alignment.Center) {
                         Icon(Icons.Default.AutoAwesome, null, tint = VioletLight, modifier = Modifier.size(18.dp))
                     }
                     Spacer(Modifier.width(12.dp))
                     Column {
                         Text("AI Matching Active", color = White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Text(
-                            if (userCourse.isNotEmpty()) "Pre-filled from your profile: $userCourse"
-                            else "Select module + day to find your group",
-                            color = TextMuted, fontSize = 12.sp
-                        )
+                        Text(if (userCourse.isNotEmpty()) "Pre-filled from your profile: $userCourse" else "Select module + day to find your group", color = TextMuted, fontSize = 12.sp)
                     }
                 }
                 Spacer(Modifier.height(22.dp))
             }
 
-            // ── Module selector ──
             item {
                 Row(modifier = Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.width(3.dp).height(14.dp).clip(CircleShape).background(FireGradient))
@@ -410,10 +390,7 @@ fun StudyGroupScreen(navController: NavController) {
                     modules.chunked(3).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             row.forEach { mod ->
-                                SelectorChip(mod, selectedModule == mod) {
-                                    selectedModule = if (selectedModule == mod) "" else mod
-                                    showMatches = false
-                                }
+                                SelectorChip(mod, selectedModule == mod) { selectedModule = if (selectedModule == mod) "" else mod; showMatches = false }
                             }
                         }
                     }
@@ -421,7 +398,6 @@ fun StudyGroupScreen(navController: NavController) {
                 Spacer(Modifier.height(22.dp))
             }
 
-            // ── Day selector ──
             item {
                 Row(modifier = Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.width(3.dp).height(14.dp).clip(CircleShape).background(FireGradient))
@@ -433,10 +409,7 @@ fun StudyGroupScreen(navController: NavController) {
                     days.chunked(3).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             row.forEach { day ->
-                                SelectorChip(day.take(3), selectedDay == day) {
-                                    selectedDay = if (selectedDay == day) "" else day
-                                    showMatches = false
-                                }
+                                SelectorChip(day.take(3), selectedDay == day) { selectedDay = if (selectedDay == day) "" else day; showMatches = false }
                             }
                         }
                     }
@@ -444,17 +417,11 @@ fun StudyGroupScreen(navController: NavController) {
                 Spacer(Modifier.height(22.dp))
             }
 
-            // ── Find button ──
             item {
                 Button(
                     onClick = {
-                        isMatching = true
-                        showMatches = false
-                        // Simulate a brief "AI thinking" delay
-                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                            isMatching = false
-                            showMatches = true
-                        }, 800)
+                        isMatching = true; showMatches = false
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ isMatching = false; showMatches = true }, 800)
                     },
                     enabled = !isMatching,
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
@@ -462,10 +429,7 @@ fun StudyGroupScreen(navController: NavController) {
                     contentPadding = PaddingValues(0.dp),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(52.dp)
                 ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize().background(FireGradient, RoundedCornerShape(50.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize().background(FireGradient, RoundedCornerShape(50.dp)), contentAlignment = Alignment.Center) {
                         if (isMatching) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 CircularProgressIndicator(color = White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -482,12 +446,10 @@ fun StudyGroupScreen(navController: NavController) {
                 Spacer(Modifier.height(24.dp))
             }
 
-            // ── Results ──
             if (showMatches) {
                 item {
                     val perfectCount = rankedGroups.count { it.second == 2 }
                     val partialCount = rankedGroups.count { it.second == 1 }
-
                     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(modifier = Modifier.width(3.dp).height(14.dp).clip(CircleShape).background(FireGradient))
@@ -502,8 +464,7 @@ fun StudyGroupScreen(navController: NavController) {
                                 if (partialCount > 0) append("$partialCount partial match${if (partialCount > 1) "es" else ""}")
                                 if (perfectCount == 0 && partialCount == 0) append("No exact matches — showing all groups")
                             },
-                            color = TextMuted, fontSize = 12.sp,
-                            modifier = Modifier.padding(start = 11.dp)
+                            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 11.dp)
                         )
                     }
                     Spacer(Modifier.height(12.dp))
@@ -511,13 +472,7 @@ fun StudyGroupScreen(navController: NavController) {
 
                 if (rankedGroups.isEmpty()) {
                     item {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
-                                .clip(RoundedCornerShape(18.dp)).background(CardBg)
-                                .border(1.dp, CardBorder, RoundedCornerShape(18.dp))
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).clip(RoundedCornerShape(18.dp)).background(CardBg).border(1.dp, CardBorder, RoundedCornerShape(18.dp)).padding(32.dp), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("🔍", fontSize = 32.sp)
                                 Spacer(Modifier.height(8.dp))
@@ -529,7 +484,7 @@ fun StudyGroupScreen(navController: NavController) {
                 } else {
                     items(rankedGroups) { (group, score) ->
                         Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                            StudyGroupCard(group = group, matchScore = score)
+                            StudyGroupCard(group = group, matchScore = score, navController = navController)
                         }
                         Spacer(Modifier.height(10.dp))
                     }

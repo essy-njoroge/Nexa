@@ -16,7 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -28,10 +30,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.essy.nexa.model.Event
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
 private val DeepMidnight = Color(0xFF06050F)
-private val DarkSurface  = Color(0xFF0D0918)
 private val CardBg       = Color(0xFF100E1A)
 private val HotPink      = Color(0xFFFF2D9B)
 private val BlazeOrange  = Color(0xFFFF6400)
@@ -42,8 +47,8 @@ private val White        = Color.White
 private val TextMuted    = White.copy(alpha = 0.45f)
 private val CardBorder   = White.copy(alpha = 0.07f)
 
-private val FireGradient  = Brush.linearGradient(listOf(HotPink, BlazeOrange, GoldYellow))
-private val TealGradient  = Brush.linearGradient(listOf(TealGreen, Color(0xFF00A87C)))
+private val FireGradient = Brush.linearGradient(listOf(HotPink, BlazeOrange, GoldYellow))
+private val TealGradient = Brush.linearGradient(listOf(TealGreen, Color(0xFF00A87C)))
 
 // ─── Radial orb ───────────────────────────────────────────────────────────────
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRadialOrb(
@@ -67,7 +72,6 @@ private fun QrBackground(scanned: Boolean) {
     val inf = rememberInfiniteTransition(label = "bg")
     val o1 by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(8000, easing = EaseInOutSine), RepeatMode.Reverse), "o1")
     val gr by inf.animateFloat(0f, 36f, infiniteRepeatable(tween(3000, easing = LinearEasing), RepeatMode.Restart), "gr")
-
     val orbColor = if (scanned) TealGreen else HotPink
 
     Box(modifier = Modifier.fillMaxSize().drawBehind {
@@ -113,7 +117,6 @@ private fun CornerBrackets(scanned: Boolean) {
 // ─── Scanner box ──────────────────────────────────────────────────────────────
 @Composable
 private fun ScannerBox(scanned: Boolean, scanLineY: Float) {
-    val borderColor = if (scanned) TealGreen else HotPink
     val borderBrush = if (scanned) TealGradient else FireGradient
 
     Box(
@@ -121,14 +124,13 @@ private fun ScannerBox(scanned: Boolean, scanLineY: Float) {
             .size(240.dp)
             .drawWithContent {
                 drawContent()
-                // Gradient border around the scanner
                 val strokeW = 2.dp.toPx()
                 val r = 20.dp.toPx()
                 drawRoundRect(
                     brush = borderBrush,
                     topLeft = Offset(strokeW / 2, strokeW / 2),
-                    size = androidx.compose.ui.geometry.Size(size.width - strokeW, size.height - strokeW),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(r, r),
+                    size = Size(size.width - strokeW, size.height - strokeW),
+                    cornerRadius = CornerRadius(r, r),
                     style = Stroke(width = strokeW)
                 )
             }
@@ -137,50 +139,53 @@ private fun ScannerBox(scanned: Boolean, scanLineY: Float) {
         contentAlignment = Alignment.Center
     ) {
         if (!scanned) {
-            // QR placeholder icon
             Icon(
                 Icons.Default.QrCode, null,
                 tint = White.copy(alpha = 0.12f),
                 modifier = Modifier.size(110.dp)
             )
 
-            // Corner accent brackets inside scanner
-            listOf(
-                Alignment.TopStart, Alignment.TopEnd,
-                Alignment.BottomStart, Alignment.BottomEnd
-            ).forEachIndexed { i, alignment ->
-                Box(
-                    modifier = Modifier
-                        .align(alignment)
-                        .padding(14.dp)
-                        .size(22.dp)
-                        .drawBehind {
-                            val s = size.width; val w = 2.5.dp.toPx(); val c = HotPink
-                            when (i) {
-                                0 -> { drawLine(c, Offset(s,0f), Offset(0f,0f), w, cap = StrokeCap.Square); drawLine(c, Offset(0f,0f), Offset(0f,s), w, cap = StrokeCap.Square) }
-                                1 -> { drawLine(c, Offset(0f,0f), Offset(s,0f), w, cap = StrokeCap.Square); drawLine(c, Offset(s,0f), Offset(s,s), w, cap = StrokeCap.Square) }
-                                2 -> { drawLine(c, Offset(0f,s), Offset(s,s), w, cap = StrokeCap.Square); drawLine(c, Offset(0f,0f), Offset(0f,s), w, cap = StrokeCap.Square) }
-                                3 -> { drawLine(c, Offset(0f,s), Offset(s,s), w, cap = StrokeCap.Square); drawLine(c, Offset(s,0f), Offset(s,s), w, cap = StrokeCap.Square) }
+            listOf(Alignment.TopStart, Alignment.TopEnd, Alignment.BottomStart, Alignment.BottomEnd)
+                .forEachIndexed { i, alignment ->
+                    Box(
+                        modifier = Modifier
+                            .align(alignment)
+                            .padding(14.dp)
+                            .size(22.dp)
+                            .drawBehind {
+                                val s = size.width; val w = 2.5.dp.toPx(); val c = HotPink
+                                when (i) {
+                                    0 -> { drawLine(c, Offset(s,0f), Offset(0f,0f), w, cap = StrokeCap.Square); drawLine(c, Offset(0f,0f), Offset(0f,s), w, cap = StrokeCap.Square) }
+                                    1 -> { drawLine(c, Offset(0f,0f), Offset(s,0f), w, cap = StrokeCap.Square); drawLine(c, Offset(s,0f), Offset(s,s), w, cap = StrokeCap.Square) }
+                                    2 -> { drawLine(c, Offset(0f,s), Offset(s,s), w, cap = StrokeCap.Square); drawLine(c, Offset(0f,0f), Offset(0f,s), w, cap = StrokeCap.Square) }
+                                    3 -> { drawLine(c, Offset(0f,s), Offset(s,s), w, cap = StrokeCap.Square); drawLine(c, Offset(s,0f), Offset(s,s), w, cap = StrokeCap.Square) }
+                                }
                             }
-                        }
-                )
-            }
+                    )
+                }
 
-            // Animated scan line
+            // FIX 4: scan line drawn inside the box using drawBehind — can't escape clip boundary
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .height(2.dp)
-                    .offset(y = (212 * scanLineY - 106).dp)
-                    .background(
-                        Brush.horizontalGradient(listOf(Color.Transparent, HotPink, BlazeOrange, Color.Transparent))
-                    )
+                    .fillMaxSize()
+                    .drawBehind {
+                        val padding = 14.dp.toPx()
+                        val y = padding + (size.height - 2 * padding) * scanLineY
+                        drawLine(
+                            brush = Brush.horizontalGradient(
+                                listOf(Color.Transparent, HotPink, BlazeOrange, Color.Transparent)
+                            ),
+                            start = Offset(padding, y),
+                            end   = Offset(size.width - padding, y),
+                            strokeWidth = 2.dp.toPx()
+                        )
+                    }
             )
-
         } else {
-            // Success state
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Box(
                     modifier = Modifier
                         .size(72.dp)
@@ -198,10 +203,40 @@ private fun ScannerBox(scanned: Boolean, scanLineY: Float) {
 }
 
 // ─── QrCheckInScreen ──────────────────────────────────────────────────────────
+// FIX 1: Accept eventId — load real event instead of hardcoded text
 @Composable
-fun QrCheckInScreen(navController: NavController) {
-    var scanned by remember { mutableStateOf(false) }
-    val scanLine = remember { Animatable(0f) }
+fun QrCheckInScreen(navController: NavController, eventId: String?) {
+    val db  = FirebaseFirestore.getInstance()
+    val uid = FirebaseAuth.getInstance().currentUser?.uid
+
+    // FIX 1: Load event from Firestore; fall back to hardcoded list if offline
+    var event     by remember { mutableStateOf<Event?>(eventList.find { it.id == eventId } ?: eventList[0]) }
+    var scanned   by remember { mutableStateOf(false) }
+    var isWriting by remember { mutableStateOf(false) } // prevents double-tap
+    val scanLine  = remember { Animatable(0f) }
+
+    // FIX 1: Load real event data
+    LaunchedEffect(eventId) {
+        if (eventId == null) return@LaunchedEffect
+        db.collection("events").document(eventId).get()
+            .addOnSuccessListener { doc ->
+                if (doc.exists()) {
+                    event = Event(
+                        id            = doc.id,
+                        title         = doc.getString("title") ?: "",
+                        description   = doc.getString("description") ?: "",
+                        location      = doc.getString("location") ?: "",
+                        date          = doc.getString("date") ?: "",
+                        time          = doc.getString("time") ?: "",
+                        category      = doc.getString("category") ?: "General",
+                        attendees     = (doc.getLong("attendees") ?: 0).toInt(),
+                        maxAttendees  = (doc.getLong("maxAttendees") ?: 100).toInt(),
+                        organizerName = doc.getString("organizerName") ?: "",
+                        isRsvped      = false
+                    )
+                }
+            }
+    }
 
     LaunchedEffect(scanned) {
         if (!scanned) {
@@ -211,6 +246,33 @@ fun QrCheckInScreen(navController: NavController) {
             }
         }
     }
+
+    // FIX 2: Write check-in to Firestore
+    fun recordCheckIn() {
+        if (uid == null || eventId == null || isWriting) return
+        isWriting = true
+
+        val checkInRef = db.collection("events").document(eventId)
+            .collection("checkins").document(uid)
+
+        checkInRef.set(
+            mapOf(
+                "uid"       to uid,
+                "eventId"   to eventId,
+                "timestamp" to FieldValue.serverTimestamp()
+            )
+        ).addOnSuccessListener {
+            scanned   = true
+            isWriting = false
+        }.addOnFailureListener {
+            // Still mark as scanned locally so the UI doesn't freeze
+            scanned   = true
+            isWriting = false
+        }
+    }
+
+    val ev = event ?: return
+    val categoryColor = eventCategoryColor(ev.category)
 
     Box(modifier = Modifier.fillMaxSize().background(DeepMidnight)) {
         QrBackground(scanned = scanned)
@@ -225,7 +287,9 @@ fun QrCheckInScreen(navController: NavController) {
             // ── Top bar ──
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier.size(40.dp).clip(CircleShape)
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
                         .background(White.copy(alpha = 0.06f))
                         .border(1.dp, White.copy(alpha = 0.10f), CircleShape)
                         .clickable { navController.popBackStack() },
@@ -242,7 +306,7 @@ fun QrCheckInScreen(navController: NavController) {
 
             Spacer(Modifier.height(24.dp))
 
-            // ── Event info chip ──
+            // ── FIX 1: Real event info chip ──
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -253,26 +317,28 @@ fun QrCheckInScreen(navController: NavController) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
-                    modifier = Modifier.size(38.dp).clip(CircleShape)
-                        .background(HotPink.copy(alpha = 0.12f))
-                        .border(1.dp, HotPink.copy(alpha = 0.25f), CircleShape),
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(categoryColor.copy(alpha = 0.12f))
+                        .border(1.dp, categoryColor.copy(alpha = 0.25f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Event, null, tint = HotPink, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Event, null, tint = categoryColor, modifier = Modifier.size(18.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Annual Hackathon 2025", color = White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text("Fri 16 May  •  Innovation Hub", color = TextMuted, fontSize = 12.sp)
+                    Text(ev.title, color = White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("${ev.date}  •  ${ev.location}", color = TextMuted, fontSize = 12.sp)
                 }
                 Box(
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(HotPink.copy(alpha = 0.10f))
-                        .border(1.dp, HotPink.copy(alpha = 0.25f), CircleShape)
+                        .background(categoryColor.copy(alpha = 0.10f))
+                        .border(1.dp, categoryColor.copy(alpha = 0.25f), CircleShape)
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Text("Tech", color = HotPink, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text(ev.category, color = categoryColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -304,7 +370,8 @@ fun QrCheckInScreen(navController: NavController) {
             // ── Action button ──
             if (!scanned) {
                 Button(
-                    onClick = { scanned = true },
+                    onClick = { recordCheckIn() }, // FIX 2: writes to Firestore
+                    enabled = !isWriting,
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                     shape = RoundedCornerShape(50.dp),
                     contentPadding = PaddingValues(0.dp),
@@ -314,15 +381,20 @@ fun QrCheckInScreen(navController: NavController) {
                         modifier = Modifier.fillMaxSize().background(FireGradient, RoundedCornerShape(50.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Default.QrCodeScanner, null, tint = White, modifier = Modifier.size(18.dp))
-                            Text("Simulate Scan (Demo)", color = White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        if (isWriting) {
+                            CircularProgressIndicator(color = White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(Icons.Default.QrCodeScanner, null, tint = White, modifier = Modifier.size(18.dp))
+                                Text("Simulate Scan (Demo)", color = White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
                         }
                     }
                 }
             } else {
+                // FIX 3: pass eventId to checkin_done so confirmation screen has context
                 Button(
-                    onClick = { navController.navigate("checkin_done") },
+                    onClick = { navController.navigate("checkin_done/${ev.id}") },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                     shape = RoundedCornerShape(50.dp),
                     contentPadding = PaddingValues(0.dp),
@@ -347,4 +419,4 @@ fun QrCheckInScreen(navController: NavController) {
 
 @Preview(showBackground = true, backgroundColor = 0xFF06050F)
 @Composable
-fun QrCheckInPreview() { QrCheckInScreen(rememberNavController()) }
+fun QrCheckInPreview() { QrCheckInScreen(rememberNavController(), eventId = "1") }

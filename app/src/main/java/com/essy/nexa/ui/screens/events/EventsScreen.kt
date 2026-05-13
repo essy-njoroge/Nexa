@@ -32,11 +32,13 @@ import androidx.navigation.compose.rememberNavController
 import com.essy.nexa.model.Event
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
+import java.text.SimpleDateFormat
+import java.util.*
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
 private val DeepMidnight = Color(0xFF06050F)
-private val DarkSurface  = Color(0xFF0D0918)
 private val CardBg       = Color(0xFF100E1A)
 private val HotPink      = Color(0xFFFF2D9B)
 private val BlazeOrange  = Color(0xFFFF6400)
@@ -52,16 +54,20 @@ private val FireGradient = Brush.linearGradient(listOf(HotPink, BlazeOrange, Gol
 
 // ─── Category → color ─────────────────────────────────────────────────────────
 fun eventCategoryColor(category: String) = when (category) {
-    "Tech"      -> HotPink
-    "Career"    -> GoldYellow
-    "Arts"      -> Color(0xFFEC4899)
-    "Wellness"  -> TealGreen
-    "Business"  -> VioletDeep
-    "Sports"    -> CobaltBlue
-    else        -> BlazeOrange
+    "Tech"     -> HotPink
+    "Career"   -> GoldYellow
+    "Arts"     -> Color(0xFFEC4899)
+    "Wellness" -> TealGreen
+    "Business" -> VioletDeep
+    "Sports"   -> CobaltBlue
+    else       -> BlazeOrange
 }
 
-// ─── Hardcoded fallback list (shown when Firestore is empty / offline) ────────
+// ─── FIX 4: Dynamic today label ───────────────────────────────────────────────
+private fun todayDateLabel(): String =
+    SimpleDateFormat("d MMM", Locale.ENGLISH).format(Date())
+
+// ─── Hardcoded fallback list ──────────────────────────────────────────────────
 val eventList = listOf(
     Event("1","Annual Hackathon 2025","Build solutions for Africa's challenges","Innovation Hub, Block C","Fri 16 May","9:00 AM","Tech",87,120,"TechClub",false),
     Event("2","Career Fair — Tech Edition","Meet top companies actively hiring","Main Auditorium","Mon 19 May","10:00 AM","Career",230,300,"Career Office",true),
@@ -151,7 +157,6 @@ fun EventCard(event: Event, onClick: () -> Unit) {
             .clickable { onClick() }
             .padding(16.dp)
     ) {
-        // Top row: category tag + RSVP badge
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
@@ -186,7 +191,6 @@ fun EventCard(event: Event, onClick: () -> Unit) {
 
         Spacer(Modifier.height(12.dp))
 
-        // Date / time / attendees row
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.CalendarToday, null, tint = catColor.copy(alpha = 0.70f), modifier = Modifier.size(12.dp))
@@ -207,7 +211,6 @@ fun EventCard(event: Event, onClick: () -> Unit) {
 
         Spacer(Modifier.height(10.dp))
 
-        // Capacity bar
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -229,19 +232,21 @@ fun EventCard(event: Event, onClick: () -> Unit) {
 // ─── EventsScreen ─────────────────────────────────────────────────────────────
 @Composable
 fun EventsScreen(navController: NavController) {
-    var selectedFilter by remember { mutableStateOf("All") }
-    var searchQuery    by remember { mutableStateOf("") }
-    var isSearchActive by remember { mutableStateOf(false) }
-
-    // Live Firestore events — merges with hardcoded fallback
+    var selectedFilter  by remember { mutableStateOf("All") }
+    var searchQuery     by remember { mutableStateOf("") }
+    var isSearchActive  by remember { mutableStateOf(false) }
     var firestoreEvents by remember { mutableStateOf<List<Event>>(emptyList()) }
-    var isLoading       by remember { mutableStateOf(true) }
+    var isLoading       by remember { mutableStateOf(true) }  // FIX 3: starts true
+    var isAdmin         by remember { mutableStateOf(false) }
 
-    // Check if current user is admin
-    var isAdmin by remember { mutableStateOf(false) }
+    // FIX 4: compute today label once
+    val today = remember { todayDateLabel() }
 
-    LaunchedEffect(Unit) {
+    // FIX 5: use DisposableEffect so we can clean up the listener on dispose
+    DisposableEffect(Unit) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid
+
+        // Admin check — one-time .get() is correct; roles don't change mid-session
         if (uid != null) {
             FirebaseFirestore.getInstance()
                 .collection("users").document(uid).get()
@@ -250,12 +255,12 @@ fun EventsScreen(navController: NavController) {
                 }
         }
 
-        // Real-time listener on "events" collection
-        FirebaseFirestore.getInstance()
+        // FIX 5: store ListenerRegistration so we can remove it
+        val listener: ListenerRegistration = FirebaseFirestore.getInstance()
             .collection("events")
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, _ ->
-                isLoading = false
+                isLoading = false  // FIX 3: always fires on first response
                 if (snapshot != null) {
                     firestoreEvents = snapshot.documents.mapNotNull { doc ->
                         try {
@@ -276,15 +281,17 @@ fun EventsScreen(navController: NavController) {
                     }
                 }
             }
+
+        // FIX 5: remove listener when composable leaves composition — no memory leak
+        onDispose { listener.remove() }
     }
 
-    // Merge: Firestore events first, then hardcoded fallback
     val allEvents = if (firestoreEvents.isNotEmpty()) firestoreEvents else eventList
 
     val filtered = allEvents.filter { event ->
         val matchesFilter = when (selectedFilter) {
             "All"       -> true
-            "Today"     -> event.date.contains("16 May")
+            "Today"     -> event.date.contains(today, ignoreCase = true)  // FIX 4
             "This Week" -> true
             else        -> event.category == selectedFilter
         }
@@ -301,7 +308,6 @@ fun EventsScreen(navController: NavController) {
 
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // ── Top bar ──
             Spacer(Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
@@ -313,7 +319,6 @@ fun EventsScreen(navController: NavController) {
                     Text("${filtered.size} happening on campus", color = TextMuted, fontSize = 12.sp)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Search toggle
                     Box(
                         modifier = Modifier
                             .size(40.dp)
@@ -326,7 +331,7 @@ fun EventsScreen(navController: NavController) {
                         Icon(Icons.Default.Search, null, tint = if (isSearchActive) HotPink else White.copy(alpha = 0.80f), modifier = Modifier.size(18.dp))
                     }
 
-                    // Admin only: add event button
+                    // Admin-only add button
                     if (isAdmin) {
                         Box(
                             modifier = Modifier
@@ -344,7 +349,6 @@ fun EventsScreen(navController: NavController) {
 
             Spacer(Modifier.height(16.dp))
 
-            // ── Search bar (collapsible) ──
             if (isSearchActive) {
                 OutlinedTextField(
                     value = searchQuery,
@@ -362,19 +366,18 @@ fun EventsScreen(navController: NavController) {
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = HotPink.copy(alpha = 0.55f),
+                        focusedBorderColor   = HotPink.copy(alpha = 0.55f),
                         unfocusedBorderColor = White.copy(alpha = 0.10f),
-                        focusedContainerColor = White.copy(alpha = 0.04f),
+                        focusedContainerColor   = White.copy(alpha = 0.04f),
                         unfocusedContainerColor = White.copy(alpha = 0.04f),
-                        focusedTextColor = White,
+                        focusedTextColor   = White,
                         unfocusedTextColor = White,
-                        cursorColor = HotPink
+                        cursorColor        = HotPink
                     )
                 )
                 Spacer(Modifier.height(12.dp))
             }
 
-            // ── Filter chips ──
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -394,9 +397,9 @@ fun EventsScreen(navController: NavController) {
                     ) {
                         Text(
                             f,
-                            color = if (isSel) White else TextMuted,
+                            color      = if (isSel) White else TextMuted,
                             fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 12.sp
+                            fontSize   = 12.sp
                         )
                     }
                 }
@@ -404,17 +407,13 @@ fun EventsScreen(navController: NavController) {
 
             Spacer(Modifier.height(16.dp))
 
-            // ── Event list ──
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = HotPink, strokeWidth = 2.dp, modifier = Modifier.size(32.dp))
                 }
             } else if (filtered.isEmpty()) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .padding(40.dp),
+                    modifier = Modifier.fillMaxWidth().weight(1f).padding(40.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -430,7 +429,10 @@ fun EventsScreen(navController: NavController) {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(filtered, key = { it.id }) { event ->
-                        EventCard(event = event, onClick = { navController.navigate("event_detail") })
+                        // FIX 1: pass event.id so EventDetailScreen knows which event to load
+                        EventCard(event = event, onClick = {
+                            navController.navigate("event_detail/${event.id}")
+                        })
                     }
                     item { Spacer(Modifier.height(90.dp)) }
                 }
